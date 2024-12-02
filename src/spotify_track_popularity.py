@@ -88,11 +88,11 @@ def main():
 
 	print('\nsetting up mlFlow tracking...')
 	mlflow.set_experiment(experiment_id=MLFLOW_IDS.get('spotify_track_popularity'))
-	mlflow.log_param("lr", 0.001)
+	mlflow.set_tracking_uri('http://127.0.0.1:4000')
+	mlflow.autolog(log_datasets=False)
 
 	buildMlPipeline()
 
-	mlflow.log_metric("val_loss", val_loss)
 	print('\nfinnished run...')
 
 
