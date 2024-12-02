@@ -6,38 +6,42 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from xgboost import XGBClassifier
+import mlflow
+
 
 NUMERICAL_FEATURES = [
-    "danceability",
-    "loudness",
-    "energy",
-    "tempo",
-    "valence",
-    "speechiness",
-    "liveness",
-    "acousticness",
-    "instrumentalness",
-    "duration_ms",
-    "year",
+	"danceability",
+	"loudness",
+	"energy",
+	"tempo",
+	"valence",
+	"speechiness",
+	"liveness",
+	"acousticness",
+	"instrumentalness",
+	"duration_ms",
+	"year",
 ]
 
 CATEGORICAL_FEATURES = [
-    "genre",
+	"genre",
 ]
 
 TARGET = "verdict"
-
 RANDOM_STATE = 42
+MLFLOW_IDS = {
+	"spotify_track_popularity": "994688289495687490"
+}
 
-def main():
-	print('\nstarting run...')
 
+
+def buildMlPipeline():
 	# downloading dataset
 	print('\ndownloading dataset...')
 	api = KaggleApi()
 	api.authenticate()
 	api.dataset_download_files(
-	    dataset="amitanshjoshi/spotify-1million-tracks", path="./data", unzip=True
+		dataset="amitanshjoshi/spotify-1million-tracks", path="./data", unzip=True
 	)
 	spotify_tracks = pd.read_csv("./data/spotify_data.csv")
 	print(spotify_tracks.head())
@@ -45,7 +49,7 @@ def main():
 	# Add the popularity verdict
 	print('\nadding popularity verdict...')
 	spotify_tracks[TARGET] = spotify_tracks.apply(
-	    lambda row: 1 if row["popularity"] >= 50 else 0, axis=1
+		lambda row: 1 if row["popularity"] >= 50 else 0, axis=1
 	)
 	feature_columns = NUMERICAL_FEATURES + CATEGORICAL_FEATURES
 	features = spotify_tracks[feature_columns + [TARGET]]
@@ -62,23 +66,34 @@ def main():
 	categorical_pipeline = Pipeline([("encoder", OneHotEncoder())])
 
 	preprocessing_pipeline = ColumnTransformer(
-	    [
-	        ("numerical_preprocessor", numerical_pipeline, NUMERICAL_FEATURES),
-	        ("categorical_pipeline", categorical_pipeline, CATEGORICAL_FEATURES),
-	    ]
+		[
+			("numerical_preprocessor", numerical_pipeline, NUMERICAL_FEATURES),
+			("categorical_pipeline", categorical_pipeline, CATEGORICAL_FEATURES),
+		]
 	)
 
 	pipeline = Pipeline(
-	    [
-	        ("preprocessor", preprocessing_pipeline),
-	        ("estimator", XGBClassifier(random_state=RANDOM_STATE)),
-	    ]
+		[
+			("preprocessor", preprocessing_pipeline),
+			("estimator", XGBClassifier(random_state=RANDOM_STATE)),
+		]
 	)
 
 	pipeline.fit(train_input_ros, train_output_ros)
 
 
 
+def main():
+	print('\nstarting run...')
+
+	print('\nsetting up mlFlow tracking...')
+	mlflow.set_experiment(experiment_id=MLFLOW_IDS.get('spotify_track_popularity'))
+	mlflow.log_param("lr", 0.001)
+
+	buildMlPipeline()
+
+	mlflow.log_metric("val_loss", val_loss)
+	print('\nfinnished run...')
 
 
 
