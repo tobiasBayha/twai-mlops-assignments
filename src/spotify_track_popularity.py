@@ -91,6 +91,9 @@ def main():
 	mlflow.set_tracking_uri('http://127.0.0.1:4000')
 	mlflow.autolog(log_datasets=False)
 
+	mlflow.log_param("custom_logParam_01", 1)
+	mlflow.log_metric("custom_logMetric_01", 0)
+
 	buildMlPipeline()
 
 	print('\nfinnished run...')
