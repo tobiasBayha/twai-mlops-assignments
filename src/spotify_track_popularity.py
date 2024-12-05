@@ -8,6 +8,8 @@ from sklearn.compose import ColumnTransformer
 from xgboost import XGBClassifier
 import mlflow
 
+from mlflow.models import infer_signature
+
 
 NUMERICAL_FEATURES = [
 	"danceability",
@@ -29,10 +31,11 @@ CATEGORICAL_FEATURES = [
 
 TARGET = "verdict"
 RANDOM_STATE = 42
+
 MLFLOW_IDS = {
 	"spotify_track_popularity": "994688289495687490"
 }
-
+MLFLOW_MODEL_URI = ""
 
 
 def buildMlPipeline():
@@ -46,6 +49,15 @@ def buildMlPipeline():
 	spotify_tracks = pd.read_csv("./data/spotify_data.csv")
 	print(spotify_tracks.head())
 
+	# add further dataset logging
+	#dataset = mlflow.data.from_pandas(
+	#	spotify_tracks,
+	#	#source="amitanshjoshi/spotify-1million-tracks",
+	#	name="Spotify Popularity Dataset",
+	#	targets="popularity"
+	#)
+	#mlflow.log_input(dataset, context="training")
+
 	# Add the popularity verdict
 	print('\nadding popularity verdict...')
 	spotify_tracks[TARGET] = spotify_tracks.apply(
@@ -57,6 +69,9 @@ def buildMlPipeline():
 
 	print('\ncreating train/test data sets...')
 	train_data, test_data = train_test_split(features, random_state=RANDOM_STATE)
+	#train_data, test_data, y_train, y_test = train_test_split(features, feature_columns, random_state=RANDOM_STATE)
+	#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+
 	train_input = train_data[feature_columns]
 	train_output = train_data[TARGET]
 	train_input_ros, train_output_ros = RandomOverSampler(random_state=RANDOM_STATE).fit_resample(train_input, train_output)
@@ -72,30 +87,56 @@ def buildMlPipeline():
 		]
 	)
 
+	model = XGBClassifier(random_state=RANDOM_STATE)
 	pipeline = Pipeline(
 		[
 			("preprocessor", preprocessing_pipeline),
-			("estimator", XGBClassifier(random_state=RANDOM_STATE)),
+			("estimator", model),
 		]
 	)
 
 	pipeline.fit(train_input_ros, train_output_ros)
+
+	#y_pred = model.predict(test_data)
+	#signature = infer_signature(test_data, y_pred)
+
+	# construct an evaluation dataset from the test set
+	#eval_data = test_data
+	#eval_data["target"] = y_test
+
+	# add further model logging
+	#mlflow.sklearn.log_model(
+	#	sk_model=model,
+	#	artifact_path="sklearn-model",
+	#	signatire=signature,
+	#	registered_model_name="XGBClassifier",
+	#)
+	MLFLOW_MODEL_URI = mlflow.get_artifact_uri("model")
+	result = mlflow.evaluate(MLFLOW_MODEL_URI, test_data, targets='verdict',model_type="classifier",evaluators=["default"])
 
 
 
 def main():
 	print('\nstarting run...')
 
+
 	print('\nsetting up mlFlow tracking...')
 	mlflow.set_experiment(experiment_id=MLFLOW_IDS.get('spotify_track_popularity'))
 	mlflow.set_tracking_uri('http://127.0.0.1:4000')
-	mlflow.autolog(log_datasets=False)
+	mlflow.autolog(
+		log_datasets=False,
+		log_input_examples=True,
+		log_model_signatures=True
+	)
 
-	mlflow.log_param("custom_logParam_01", 1)
-	mlflow.log_metric("custom_logMetric_01", 0)
+	with mlflow.start_run():
+		mlflow.log_param("custom_logParam_01", 1)
+		mlflow.log_metric("custom_logMetric_01", 0)
 
-	buildMlPipeline()
+		buildMlPipeline()
 
+	# not needed as with-block contains end_run()
+	# mlflow.end_run(status='FINISHED')
 	print('\nfinnished run...')
 
 
